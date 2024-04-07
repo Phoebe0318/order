@@ -1,12 +1,12 @@
 package com.example.order.controller;
 
-import com.example.order.pojo.Member;
+import com.example.order.pojo.MemberDto;
+import com.example.order.pojo.MemberStatisticsDto;
+import com.example.order.pojo.MemberDo;
 import com.example.order.service.MemberService;
 import com.example.order.pojo.ResponseDto;
 import io.swagger.v3.oas.annotations.Operation;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -24,32 +24,38 @@ public class MemberController {
 
     @GetMapping
     @Operation(summary = "Get all members")
-    public ResponseDto<List<Member>> getAllMembers() {
+    public ResponseDto<List<MemberDo>> getAllMembers() {
         return memberService.getAllMembers();
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Get member by ID")
-    public ResponseDto<Member> getMemberById(@PathVariable Long id) {
+    public ResponseDto<MemberDo> getMemberById(@PathVariable Long id) {
         return memberService.getMemberById(id);
     }
 
     @PostMapping
     @Operation(summary = "Add a new member")
-    public ResponseDto<Member> addMember(@RequestBody Member member) {
-        return memberService.addMember(member);
+    public ResponseDto<MemberDo> addMember(@RequestBody MemberDto memberDto) {
+        return memberService.addMember(memberDto);
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Update member by ID")
-    public ResponseDto<Member> updateMember(@PathVariable Long id, @RequestBody Member updatedMember) {
-        return memberService.updateMember(id, updatedMember);
+    public ResponseDto<MemberDo> updateMember(@PathVariable Long id, @RequestBody MemberDto memberDto) {
+        return memberService.updateMember(id, memberDto);
     }
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete member by ID")
-    public ResponseDto<Void> deleteMember(@PathVariable Long id) {
+    public ResponseDto<String> deleteMember(@PathVariable Long id) {
         return memberService.deleteMember(id);
+    }
+
+    @GetMapping("/statistics")
+    @Operation(summary = "Get members with orders greater than N")
+    public ResponseDto<List<MemberStatisticsDto>> getMembersWithOrdersGreaterThanN(@RequestParam int n) {
+        return memberService.getMembersWithOrdersGreaterThanN(n);
     }
 }
 

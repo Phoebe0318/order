@@ -1,143 +1,128 @@
 package com.example.order.service;
 
-import com.example.order.pojo.Member;
+import com.example.order.dao.MemberDao;
+import com.example.order.pojo.MemberDto;
+import com.example.order.pojo.MemberStatisticsDto;
+import com.example.order.dao.OrderDao;
+import com.example.order.pojo.MemberDo;
 import com.example.order.pojo.ResponseDto;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.MessageSource;
-import org.springframework.context.i18n.LocaleContextHolder;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 
 @Service
+@RequiredArgsConstructor
+@Slf4j
 public class MemberService {
 
-    private final ConcurrentHashMap<Long, Member> members = new ConcurrentHashMap<>();
-    private final AtomicLong memberIdSequence = new AtomicLong(1);
+    private final MemberDao memberDao;
+    private final OrderDao orderDao;
 
-    public ConcurrentHashMap<Long, Member> getMembers() {
-        return this.members;
-    }
-
-    @Autowired
-    private MessageSource messageSource;
-
-    private static final Logger logger = LoggerFactory.getLogger(MemberService.class);
-
-    public ResponseDto<Member> addMember(Member member) {
-        logger.info("Adding member: {}", member.getName());
-
-        if (member.getName() == null || member.getEmail() == null) {
-            logger.warn("Invalid input for adding member.");
-            ResponseDto<Member> errorResponse = new ResponseDto<>();
-            errorResponse.setStatus(0);
-            String errorMessage = messageSource.getMessage("member.create.invalidInput", null, LocaleContextHolder.getLocale());
-            errorResponse.setMessage(errorMessage);
-            return errorResponse;
+    public ResponseDto<MemberDo> addMember(MemberDto memberDto) {
+        if (memberDao.existsByEmail(memberDto.getEmail()) > 0) {
+            ResponseDto<MemberDo> responseDto = new ResponseDto<>();
+            responseDto.setStatus(0);
+            responseDto.setMessage("Email already exists");
+            return responseDto;
         }
 
-        Long memberId = memberIdSequence.getAndIncrement();
-        member.setId(memberId);
-        members.put(memberId, member);
-
-        logger.info("Member added successfully: {}", member.getName());
-
-        ResponseDto<Member> responseDto = new ResponseDto<>();
+        MemberDo memberDo = mapToMemberDo(memberDto);
+        MemberDo savedMember = memberDao.save(memberDo);
+        ResponseDto<MemberDo> responseDto = new ResponseDto<>();
         responseDto.setStatus(1);
-        String successMessage = messageSource.getMessage("success", null, LocaleContextHolder.getLocale());
-        responseDto.setMessage(successMessage);
-        responseDto.setData(member);
+        responseDto.setMessage("Member added successfully");
+        responseDto.setData(savedMember);
         return responseDto;
     }
 
-    public ResponseDto<Member> updateMember(Long id, Member updatedMember) {
-        logger.info("Updating member with ID: {}", id);
+    private MemberDo mapToMemberDo(MemberDto memberDto) {
+        MemberDo memberDo = new MemberDo();
+        memberDo.setName(memberDto.getName());
+        memberDo.setEmail(memberDto.getEmail());
+        memberDo.setPassword(memberDto.getPassword());
+        return memberDo;
+    }
 
-        if (!members.containsKey(id)) {
-            logger.warn("Member with ID {} not found for updating.", id);
-            ResponseDto<Member> errorResponse = new ResponseDto<>();
-            errorResponse.setStatus(0);
-            String errorMessage = messageSource.getMessage("member.update.not.found", null, LocaleContextHolder.getLocale());
-            errorResponse.setMessage(errorMessage);
-            return errorResponse;
+    public ResponseDto<String> deleteMember(Long id) {
+        if (memberDao.existsById(id)) {
+            memberDao.deleteById(id);
+            ResponseDto<String> responseDto = new ResponseDto<>();
+            responseDto.setStatus(1);
+            responseDto.setMessage("Member deleted successfully");
+            return responseDto;
+        } else {
+            ResponseDto<String> responseDto = new ResponseDto<>();
+            responseDto.setStatus(0);
+            responseDto.setMessage("Member not found");
+            return responseDto;
         }
+    }
 
-        updatedMember.setId(id);
-        members.put(id, updatedMember);
+    public ResponseDto<MemberDo> updateMember(Long id, MemberDto memberDto) {
+        if (memberDao.existsById(id)) {
+            MemberDo memberDo = mapToMemberDo(memberDto);
+            memberDo.setId(id);
+            MemberDo updatedMember = memberDao.save(memberDo);
+            ResponseDto<MemberDo> responseDto = new ResponseDto<>();
+            responseDto.setStatus(1);
+            responseDto.setMessage("Member updated successfully");
+            responseDto.setData(updatedMember);
+            return responseDto;
+        } else {
+            ResponseDto<MemberDo> responseDto = new ResponseDto<>();
+            responseDto.setStatus(0);
+            responseDto.setMessage("Member not found");
+            return responseDto;
+        }
+    }
 
-        logger.info("Member with ID {} updated successfully.", id);
+    public ResponseDto<MemberDo> getMemberById(Long id) {
+        MemberDo memberDo = memberDao.findById(id).orElse(null);
+        if (memberDo != null) {
+            ResponseDto<MemberDo> responseDto = new ResponseDto<>();
+            responseDto.setStatus(1);
+            responseDto.setMessage("Member found");
+            responseDto.setData(memberDo);
+            return responseDto;
+        } else {
+            ResponseDto<MemberDo> responseDto = new ResponseDto<>();
+            responseDto.setStatus(0);
+            responseDto.setMessage("Member not found");
+            return responseDto;
+        }
+    }
 
-        ResponseDto<Member> responseDto = new ResponseDto<>();
-        responseDto.setStatus(1);
-        String successMessage = messageSource.getMessage("success", null, LocaleContextHolder.getLocale());
-        responseDto.setMessage(successMessage);
-        responseDto.setData(updatedMember);
+    public ResponseDto<List<MemberDo>> getAllMembers() {
+        List<MemberDo> members = memberDao.findAll();
+        ResponseDto<List<MemberDo>> responseDto = new ResponseDto<>();
+        if (!members.isEmpty()) {
+            responseDto.setStatus(1);
+            responseDto.setMessage("Members found");
+            responseDto.setData(members);
+        } else {
+            responseDto.setStatus(0);
+            responseDto.setMessage("No members found");
+        }
         return responseDto;
     }
 
-    public ResponseDto<Void> deleteMember(Long id) {
-        logger.info("Deleting member with ID: {}", id);
-
-        if (!members.containsKey(id)) {
-            logger.warn("Member with ID {} not found for deletion.", id);
-            ResponseDto<Void> errorResponse = new ResponseDto<>();
-            errorResponse.setStatus(0);
-            String errorMessage = messageSource.getMessage("member.delete.not.found", null, LocaleContextHolder.getLocale());
-            errorResponse.setMessage(errorMessage);
-            return errorResponse;
+    public ResponseDto<List<MemberStatisticsDto>> getMembersWithOrdersGreaterThanN(int n) {
+        List<MemberStatisticsDto> memberStatisticsList = new ArrayList<>();
+        List<MemberDo> members = memberDao.findAll();
+        for (MemberDo member : members) {
+            int orderCount = orderDao.countByMemberId(member.getId());
+            if (orderCount > n) {
+                MemberStatisticsDto memberStatisticsDto = new MemberStatisticsDto(member.getId(), member.getName(), member.getEmail(), orderCount);
+                memberStatisticsList.add(memberStatisticsDto);
+            }
         }
-
-        members.remove(id);
-
-        logger.info("Member with ID {} deleted successfully.", id);
-
-        ResponseDto<Void> responseDto = new ResponseDto<>();
+        ResponseDto<List<MemberStatisticsDto>> responseDto = new ResponseDto<>();
         responseDto.setStatus(1);
-        String successMessage = messageSource.getMessage("success", null, LocaleContextHolder.getLocale());
-        responseDto.setMessage(successMessage);
-        return responseDto;
-    }
-
-    public ResponseDto<Member> getMemberById(Long id) {
-        logger.info("Fetching member with ID: {}", id);
-
-        Member member = members.get(id);
-        if (member == null) {
-            logger.warn("Member with ID {} not found.", id);
-            ResponseDto<Member> errorResponse = new ResponseDto<>();
-            errorResponse.setStatus(0);
-            String errorMessage = messageSource.getMessage("member.fetch.not.found", null, LocaleContextHolder.getLocale());
-            errorResponse.setMessage(errorMessage);
-            return errorResponse;
-        }
-
-        logger.info("Member with ID {} fetched successfully.", id);
-
-        ResponseDto<Member> responseDto = new ResponseDto<>();
-        responseDto.setStatus(1);
-        String successMessage = messageSource.getMessage("success", null, LocaleContextHolder.getLocale());
-        responseDto.setMessage(successMessage);
-        responseDto.setData(member);
-        return responseDto;
-    }
-
-    public ResponseDto<List<Member>> getAllMembers() {
-        logger.info("Fetching all members.");
-
-        List<Member> memberList = new ArrayList<>(members.values());
-
-        logger.info("All members fetched successfully.");
-
-        ResponseDto<List<Member>> responseDto = new ResponseDto<>();
-        responseDto.setStatus(1);
-        String successMessage = messageSource.getMessage("success", null, LocaleContextHolder.getLocale());
-        responseDto.setMessage(successMessage);
-        responseDto.setData(memberList);
+        responseDto.setMessage("Members with orders greater than " + n + " fetched successfully");
+        responseDto.setData(memberStatisticsList);
         return responseDto;
     }
 }

@@ -1,83 +1,78 @@
 package com.example.order.service;
 
-import com.example.order.pojo.Member;
-import com.example.order.pojo.Order;
+import com.example.order.dao.MemberDao;
+import com.example.order.dao.OrderDao;
+import com.example.order.pojo.MemberDo;
+import com.example.order.pojo.OrderDo;
+import com.example.order.pojo.OrderDto;
 import com.example.order.pojo.ResponseDto;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
-import java.util.ArrayList;
+import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class OrderService {
 
-    private final Map<Long, Order> orders = new ConcurrentHashMap<>();
-    private final AtomicLong orderIdSequence = new AtomicLong(1);
+    private final OrderDao orderDao;
+    private final MemberDao memberDao;
 
-    @Autowired
-    private MemberService memberService;
-
-    public ResponseDto<Order> placeOrder(Order order) {
-        Long orderId = orderIdSequence.getAndIncrement();
-        order.setOrderId(orderId);
-        orders.put(orderId, order);
-
-        ResponseDto<Order> responseDto = new ResponseDto<>();
-        responseDto.setStatus(1);
-        responseDto.setMessage("Success");
-        responseDto.setData(order);
-
-        return responseDto;
-    }
-
-    public ResponseDto<List<Order>> getOrdersByCriteria(UUID orderUuid, String productName, LocalDateTime purchaseDate,
-                                                        int page, int pageSize) {
-        List<Order> matchingOrders = new ArrayList<>();
-        for (Order order : orders.values()) {
-            if ((orderUuid == null || order.getOrderUuid().equals(orderUuid)) &&
-                    (productName == null || order.getProductName().equals(productName)) &&
-                    (purchaseDate == null || order.getPurchaseDate().equals(purchaseDate))) {
-                matchingOrders.add(order);
-            }
+    public ResponseDto<OrderDo> createOrder(Long memberId, OrderDto orderDto) {
+        Optional<MemberDo> memberOptional = memberDao.findById(memberId);
+        if (memberOptional.isEmpty()) {
+            ResponseDto<OrderDo> responseDto = new ResponseDto<>();
+            responseDto.setStatus(0);
+            responseDto.setMessage("Member not found");
+            return responseDto;
         }
 
-        int startIndex = page * pageSize;
-        int endIndex = Math.min(startIndex + pageSize, matchingOrders.size());
-        List<Order> paginatedOrders = matchingOrders.subList(startIndex, endIndex);
-
-        ResponseDto<List<Order>> responseDto = new ResponseDto<>();
+        OrderDo orderDo = mapToOrderDo(orderDto);
+        orderDo.setMemberId(memberId);
+        orderDo.setOrderUuid(UUID.randomUUID().toString());
+        System.out.println("UUID: " + orderDo.getOrderUuid());
+        OrderDo createdOrder = orderDao.save(orderDo);
+        ResponseDto<OrderDo> responseDto = new ResponseDto<>();
         responseDto.setStatus(1);
-        responseDto.setMessage("Success");
-        responseDto.setData(paginatedOrders);
+        responseDto.setMessage("Order created successfully");
+        responseDto.setData(createdOrder);
         return responseDto;
     }
 
-    public ResponseDto<List<Member>> getMemberOrderStatistics(int n) {
-        Map<Long, Long> memberOrderCounts = orders.values().stream()
-                .collect(Collectors.groupingBy(Order::getMemberId, Collectors.counting()));
+    private OrderDo mapToOrderDo(OrderDto orderDto) {
+        OrderDo orderDo = new OrderDo();
+        orderDo.setProductId(orderDto.getProductId());
+        orderDo.setQuantity(orderDto.getQuantity());
+        orderDo.setPurchaseDate(orderDto.getPurchaseDate());
+        return orderDo;
+    }
 
-        List<Member> memberStatistics = new ArrayList<>();
-        for (Map.Entry<Long, Long> entry : memberOrderCounts.entrySet()) {
-            if (entry.getValue() > n) {
-                Long memberId = entry.getKey();
-                Member member = memberService.getMembers().get(memberId);
-                if (member != null) {
-                    memberStatistics.add(member);
-                }
-            }
+    public ResponseDto<List<OrderDo>> searchOrders(Long memberId, String orderUuid, String productName, LocalDate purchaseDate, int page, int size) {
+        List<OrderDo> orders;
+        Pageable pageable = PageRequest.of(page, size);
+        if (page > 0 && size > 0) {
+            Page<OrderDo> ordersPage = orderDao.findByConditions(memberId, orderUuid, productName, purchaseDate, pageable);
+            orders = ordersPage.getContent();
+        } else {
+            orders = orderDao.findByConditions(memberId, orderUuid, productName, purchaseDate, Pageable.unpaged()).getContent();
         }
 
-        ResponseDto<List<Member>> responseDto = new ResponseDto<>();
-        responseDto.setStatus(1);
-        responseDto.setMessage("Success");
-        responseDto.setData(memberStatistics);
+        ResponseDto<List<OrderDo>> responseDto = new ResponseDto<>();
+        if (!orders.isEmpty()) {
+            responseDto.setStatus(1);
+            responseDto.setMessage("Orders fetched successfully");
+            responseDto.setData(orders);
+        } else {
+            responseDto.setStatus(0);
+            responseDto.setMessage("No orders found");
+        }
         return responseDto;
     }
+
 }

@@ -1,49 +1,40 @@
 package com.example.order.controller;
 
-import com.example.order.pojo.Member;
-import com.example.order.pojo.Order;
+import com.example.order.pojo.OrderDo;
+import com.example.order.pojo.OrderDto;
 import com.example.order.pojo.ResponseDto;
 import com.example.order.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
-import java.util.UUID;
 
 @RestController
+@RequestMapping("/orders")
+@RequiredArgsConstructor
 public class OrderController {
 
     private final OrderService orderService;
 
-    @Autowired
-    public OrderController(OrderService orderService) {
-        this.orderService = orderService;
-    }
-
-    @PostMapping("/orders")
+    @PostMapping("/{memberId}")
     @Operation(summary = "Place an order")
-    public ResponseDto<Order> placeOrder(@RequestBody Order order) {
-        return orderService.placeOrder(order);
+    public ResponseDto<OrderDo> createOrder(@PathVariable Long memberId, @RequestBody OrderDto orderDto) {
+        return orderService.createOrder(memberId, orderDto);
     }
 
-    @GetMapping("/orders")
-    @Operation(summary = "Get all orders")
-    public ResponseDto<List<Order>> getOrdersByCriteria(
-            @RequestParam(required = false) UUID orderUuid,
+    @GetMapping
+    @Operation(summary = "Get orders by conditions")
+    public ResponseDto<List<OrderDo>> findOrders(
+            @RequestParam(required = false) Long memberId,
+            @RequestParam(required = false) String orderUuid,
             @RequestParam(required = false) String productName,
-            @RequestParam(required = false) LocalDateTime purchaseDate,
+            @RequestParam(required = false) LocalDate purchaseDate,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int pageSize) {
-        return orderService.getOrdersByCriteria(orderUuid, productName, purchaseDate, page, pageSize);
-    }
-
-    @GetMapping("/order/statistics")
-    @Operation(summary = "Get member order statistics")
-    public ResponseDto<List<Member>> getMemberOrderStatistics(@RequestParam int n) {
-        return orderService.getMemberOrderStatistics(n);
+            @RequestParam(defaultValue = "10") int size) {
+        return orderService.searchOrders(memberId, orderUuid, productName, purchaseDate, page, size);
     }
 }
