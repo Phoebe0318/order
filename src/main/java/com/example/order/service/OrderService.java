@@ -7,6 +7,7 @@ import com.example.order.pojo.OrderDo;
 import com.example.order.pojo.OrderDto;
 import com.example.order.pojo.ResponseDto;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -19,6 +20,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class OrderService {
 
     private final OrderDao orderDao;
@@ -27,6 +29,8 @@ public class OrderService {
     public ResponseDto<OrderDo> createOrder(Long memberId, OrderDto orderDto) {
         Optional<MemberDo> memberOptional = memberDao.findById(memberId);
         if (memberOptional.isEmpty()) {
+            log.info("Member not found with ID: {}", memberId);
+
             ResponseDto<OrderDo> responseDto = new ResponseDto<>();
             responseDto.setStatus(0);
             responseDto.setMessage("Member not found");
@@ -36,8 +40,9 @@ public class OrderService {
         OrderDo orderDo = mapToOrderDo(orderDto);
         orderDo.setMemberId(memberId);
         orderDo.setOrderUuid(UUID.randomUUID().toString());
-        System.out.println("UUID: " + orderDo.getOrderUuid());
         OrderDo createdOrder = orderDao.save(orderDo);
+        log.info("Order created successfully with ID: {}", createdOrder.getId());
+
         ResponseDto<OrderDo> responseDto = new ResponseDto<>();
         responseDto.setStatus(1);
         responseDto.setMessage("Order created successfully");
@@ -56,12 +61,8 @@ public class OrderService {
     public ResponseDto<List<OrderDo>> searchOrders(Long memberId, String orderUuid, String productName, LocalDate purchaseDate, int page, int size) {
         List<OrderDo> orders;
         Pageable pageable = PageRequest.of(page, size);
-        if (page > 0 && size > 0) {
-            Page<OrderDo> ordersPage = orderDao.findByConditions(memberId, orderUuid, productName, purchaseDate, pageable);
-            orders = ordersPage.getContent();
-        } else {
-            orders = orderDao.findByConditions(memberId, orderUuid, productName, purchaseDate, Pageable.unpaged()).getContent();
-        }
+        Page<OrderDo> ordersPage = orderDao.findByConditions(memberId, orderUuid, productName, purchaseDate, pageable);
+        orders = ordersPage.getContent();
 
         ResponseDto<List<OrderDo>> responseDto = new ResponseDto<>();
         if (!orders.isEmpty()) {
